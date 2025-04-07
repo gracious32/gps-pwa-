@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GPS Location Finder</title>
+  <link rel="manifest" href="manifest.json" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      text-align: center;
+      background: #f0f8ff;
+    }
+    h1 { color: #333; }
+    button {
+      padding: 10px 16px;
+      font-size: 16px;
+      margin: 10px 5px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .get-location { background-color: #007bff; color: white; }
+    .share-btn { background-color: #28a745; color: white; }
+    .clear-btn { background-color: #dc3545; color: white; }
+    .map-link {
+      display: block;
+      margin-top: 10px;
+      font-size: 16px;
+      color: #007bff;
+      text-decoration: underline;
+    }
+    #locationOutput, #history {
+      margin-top: 20px;
+      font-size: 16px;
+      color: #222;
+    }
+    .error { color: red; }
+  </style>
+</head>
+<body>
+  <h1>GPS Location Finder</h1>
+  <button class="get-location" onclick="getLocation()">Get My Location</button>
+  <div id="locationOutput"></div>
+
+  <div id="shareButtons" style="display: none;">
+    <button class="share-btn" id="whatsappBtn">Share on WhatsApp</button>
+    <button class="share-btn" id="emailBtn">Share via Email</button>
+    <a id="mapLink" class="map-link" href="#" target="_blank">View on Google Maps</a>
+  </div>
+
+  <h2>Location History</h2>
+  <div id="history"></div>
+  <button class="clear-btn" onclick="clearHistory()">Clear History</button>
+
+  <script>
+    let latitude, longitude;
+
+    function getLocation() {
+      const output = document.getElementById("locationOutput");
+      output.textContent = "Fetching location...";
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(showPosition, showError, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        });
+      } else {
+        output.innerHTML = "<span class='error'>Geolocation not supported.</span>";
+      }
+    }
+
+    function showPosition(position) {
+      latitude = position.coords.latitude;
+      longitude = position.coords.longitude;
+      const timestamp = new Date().toLocaleString();
+      const coords = { latitude, longitude, time: timestamp };
+
+      document.getElementById("locationOutput").innerHTML =
+        `Latitude: <b>${latitude}</b><br>Longitude: <b>${longitude}</b><br><small>${timestamp}</small>`;
+
+      let history = JSON.parse(localStorage.getItem("locationHistory")) || [];
+      history.unshift(coords);
+      localStorage.setItem("locationHistory", JSON.stringify(history));
+      renderHistory();
+
+      const mapURL = `https://www.google.com/maps?q=${latitude},${longitude}`;
+      document.getElementById("mapLink").href = mapURL;
+
+      document.getElementById("whatsappBtn").onclick = () => {
+        const msg = `My GPS location: ${mapURL}`;
+        window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+      };
+
+      document.getElementById("emailBtn").onclick = () => {
+        const subject = "My GPS Location";
+        const body = `Here's my location:
+${mapURL}`;
+        window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      };
+
+      document.getElementById("shareButtons").style.display = "block";
+    }
+
+    function showError(error) {
+      const output = document.getElementById("locationOutput");
+      let message = "";
+      switch (error.code) {
+        case error.PERMISSION_DENIED: message = "Permission denied."; break;
+        case error.POSITION_UNAVAILABLE: message = "Location unavailable."; break;
+        case error.TIMEOUT: message = "Request timed out."; break;
+        default: message = "Unknown error.";
+      }
+      output.innerHTML = `<span class="error">${message}</span>`;
+    }
+
+    function renderHistory() {
+      const historyContainer = document.getElementById("history");
+      const history = JSON.parse(localStorage.getItem("locationHistory")) || [];
+      if (history.length === 0) {
+        historyContainer.innerHTML = "<p>No location history yet.</p>";
+        return;
+      }
+      historyContainer.innerHTML = history.map(h => `
+        <div>
+          ${h.time}<br>
+          Lat: ${h.latitude}, Lon: ${h.longitude}<br>
+          <a href="https://www.google.com/maps?q=${h.latitude},${h.longitude}" target="_blank">View</a>
+          <hr>
+        </div>
+      `).join('');
+    }
+
+    function clearHistory() {
+      localStorage.removeItem("locationHistory");
+      renderHistory();
+    }
+
+    renderHistory();
+  </script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js')
+          .then(reg => console.log("Service Worker registered", reg))
+          .catch(err => console.error("SW registration failed", err));
+      });
+    }
+  </script>
+</body>
+</html>
